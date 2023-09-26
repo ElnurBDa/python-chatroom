@@ -2,86 +2,95 @@ import asyncio
 
 clients = {} # {a:[<writer1>, 'chatroom_name'], b:[<writer2>, 'chatroom_name']}
 chatrooms = ["test"] 
+header = 1024
 
-# sending the messge to other clients
-async def broadcast_to_all(writer, message):
-    for client in clients.values():
-        if client[0] != writer:
-            await send_message(client[0], f"{message}")
+class Client:
+    def __init__(self, writer="", reader=""):
+        self.writer = writer
+        self.reader = reader
+        self.name = ""
+        self.chatroom_name = ""
+        self.client_address = writer.get_extra_info('peername')
+        print(f"New connection from {self.client_address}")
 
-async def multicast_to_chat(writer, chatroom_name, message):
-    for client in clients.values():
-        if client[0] != writer and client[1] == chatroom_name:
-            await send_message(client[0], f"{message}")
+    async def broadcast_to_all(self, message):
+        for client in clients.values():
+            if client[0] != self.writer:
+                await self.send_message(client[0], f"{message}")
+    
+    async def multicast_to_chat(self, message):
+        for client in clients.values():
+            other_client = Client(client[0],)
+            other_client.chatroom_name = client[1]
+            if client[0] != self.writer and client[1] == self.chatroom_name:
+                await other_client.send_message(f"{message}")
+            del other_client
 
-# send and receive message from a client
-async def send_message(writer, message):
-    print(message)
-    writer.write(message.encode())
-    await writer.drain()
+    async def send_message(self, message):
+        print(message)
+        self.writer.write(message.encode())
+        await self.writer.drain()
 
-async def receive_message(reader):
-    data = await reader.read(1024)
-    return data.decode().strip() 
+    async def receive_message(self):
+        data = await self.reader.read(header)
+        return data.decode().strip() 
 
-async def client_req_and_res(reader, writer, message):
-    await send_message(writer, message)
-    return await receive_message(reader)
+    async def client_req_and_res(self, message):
+        await self.send_message(message)
+        return await self.receive_message()
 
-# some actions with clients
-async def remove_client(writer, chatroom_name, name):        
-    del clients[name]
-    await multicast_to_chat(writer, chatroom_name, f"{name} has left the chat!\n")
-    writer.close()
-    await writer.wait_closed()
+    async def remove_client(self):        
+        del clients[self.name]
+        await self.multicast_to_chat(f"{self.name} has left the chat!\n")
+        self.writer.close()
+        await self.writer.wait_closed()
+        print(f"Connection closed for {self.client_address}")
 
-async def choose_chat(reader, writer):
-    option = ""
-    while option not in ["1", "2"]:
-        option = await client_req_and_res(reader, writer, f"\n1. Create a Chatroom\n2. Select a Chatroom {chatrooms}\n")
-    print(option)
-    chatroom_name = ""
-    while True:
-        if option == "1": 
-            chatroom_name = await client_req_and_res(reader, writer, "Enter name of a new chatroom: ")
-            print(f"{chatroom_name} chatroom is created")
-            chatrooms.append(chatroom_name)
-            break
-        elif option == "2":
-            chatroom_name = await client_req_and_res(reader, writer, "Enter name of a chatroom: ")
-            if chatroom_name not in chatrooms: continue
-            break
-    return chatroom_name
+    async def choose_name(self):
+        self.name = await self.client_req_and_res("Welcome to the chatroom! Please enter your name: \n")
+        print(f"{self.name} is joined the server")
+
+    async def choose_chat(self):
+        option = ""
+        while option not in ["1", "2"]:
+            option = await self.client_req_and_res(f"\n1. Create a Chatroom\n2. Select a Chatroom {chatrooms}\n")
+            print(f"{option} is choosen")
+        while True:
+            if option == "1": 
+                self.chatroom_name = await self.client_req_and_res("Enter name of a new chatroom: ")
+                print(f"{self.chatroom_name} chatroom is created")
+                chatrooms.append(self.chatroom_name)
+                break
+            elif option == "2":
+                self.chatroom_name = await self.client_req_and_res("Enter name of a chatroom: ")
+                if self.chatroom_name not in chatrooms: continue
+                break
+        await self.multicast_to_chat(f"\n{self.name} has joined the chat!\n")
+        print(f"{self.chatroom_name} is touched the server")
 
 async def handle_client(reader, writer):
-    client_address = writer.get_extra_info('peername')
-    print(f"New connection from {client_address}")
-    name = await client_req_and_res(reader, writer, "Welcome to the chatroom! Please enter your name: \n")
-    print(f"{name} is joined the server")
-    chatroom_name = await choose_chat(reader, writer)
-    print(f"{chatroom_name} is touched the server")
-    clients[name] = [writer, chatroom_name]
-    await multicast_to_chat(writer, chatroom_name, f"\n{name} has joined the chat!\n")
+    client = Client(writer, reader)
+    await client.choose_name()
+    await client.choose_chat()
+    clients[client.name] = [client.writer, client.chatroom_name]
 
     try:
         while True:
-            # sending data to others
-            data = await reader.read(1024)
+            data = await client.reader.read(header)
             if data == b'\r\n': continue # to skip empty messages
-            message = f"{name}| {data.decode()}"
-            await multicast_to_chat(writer, chatroom_name, message)
+            message = f"{client.name}| {data.decode()}"
+            await client.multicast_to_chat(message)
 
     except asyncio.CancelledError:
         pass
     except Exception as e:
-        print(f"Error handling client {name}: {e}")
+        print(f"Error handling client {client.name}: {e}")
     finally:
-        await remove_client(writer, chatroom_name, name)
-        print(f"Connection closed for {client_address}")
+        await client.remove_client()
+        del client
 
 async def main():
     server = await asyncio.start_server(handle_client, '127.0.0.1', 8888)
-
     async with server:
         await server.serve_forever()
 
