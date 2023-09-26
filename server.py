@@ -1,33 +1,47 @@
 import asyncio
+from utils import *
+from enum import Enum
 
-clients = {} # {a:[<writer1>, 'chatroom_name'], b:[<writer2>, 'chatroom_name']}
-chatrooms = ["test"] 
+class Options(Enum):
+    CREATE = 1
+    SELECT = 2
+
+clients = {} # {'id': {'name':"bob", 'writer':<writer>, 'chatroom_id':"1"}}
+chatrooms = {
+    'chat______default_id_of_default_chatroom':"test"
+} # {'chatroom_id': 'chatroom_name'}
 header = 1024
+ip, port = '127.0.0.1', 8888
+
+async def send_message(writer, message):
+    writer.write(message.encode())
+    await writer.drain()
+
 
 class Client:
     def __init__(self, writer="", reader=""):
+        self.id = generate_secure_user_id()
         self.writer = writer
         self.reader = reader
         self.name = ""
-        self.chatroom_name = ""
+        self.chatroom_id = ""
         self.client_address = writer.get_extra_info('peername')
         print(f"New connection from {self.client_address}")
 
+    def get_user_profile(self):
+        return {'name': self.name, 'chatroom_id': self.chatroom_id, 'writer': self.writer}
+
     async def broadcast_to_all(self, message):
-        for client in clients.values():
-            if client[0] != self.writer:
-                await self.send_message(client[0], f"{message}")
+        for user_id, values in clients.items():
+            if user_id != self.id:
+                await send_message(values['writer'],f"{message}")
     
-    async def multicast_to_chat(self, message):
-        for client in clients.values():
-            other_client = Client(client[0],)
-            other_client.chatroom_name = client[1]
-            if client[0] != self.writer and client[1] == self.chatroom_name:
-                await other_client.send_message(f"{message}")
-            del other_client
+    async def multicast_to_chat(self, message):        
+        for user_id, values in clients.items():
+            if user_id != self.id and values['chatroom_id'] == self.chatroom_id:
+                await send_message(values['writer'],f"{message}")
 
     async def send_message(self, message):
-        print(message)
         self.writer.write(message.encode())
         await self.writer.drain()
 
@@ -48,39 +62,46 @@ class Client:
 
     async def choose_name(self):
         self.name = await self.client_req_and_res("Welcome to the chatroom! Please enter your name: \n")
-        print(f"{self.name} is joined the server")
+        print(f"{self.name} has joined the server")
 
     async def choose_chat(self):
         option = ""
-        while option not in ["1", "2"]:
+        while option not in [Options.CREATE, Options.SELECT]:
             option = await self.client_req_and_res(f"\n1. Create a Chatroom\n2. Select a Chatroom {chatrooms}\n")
-            print(f"{option} is choosen")
+            try:
+                option = Options(int(option))  # Convert user input to enum
+            except ValueError:
+                option = None
+            print(f"{option} is chosen")
         while True:
-            if option == "1": 
-                self.chatroom_name = await self.client_req_and_res("Enter name of a new chatroom: ")
-                print(f"{self.chatroom_name} chatroom is created")
-                chatrooms.append(self.chatroom_name)
+            if option == Options.CREATE: 
+                chatroom_name = await self.client_req_and_res("Enter name of a new chatroom: ")
+                print(f"{chatroom_name} chatroom is created")
+                self.chatroom_id = generate_secure_chat_id() 
+                chatrooms[self.chatroom_id] = chatroom_name
                 break
-            elif option == "2":
-                self.chatroom_name = await self.client_req_and_res("Enter name of a chatroom: ")
-                if self.chatroom_name not in chatrooms: continue
+            elif option == Options.SELECT:
+                chatroom_name = await self.client_req_and_res("Enter name of a chatroom: ")
+                self.chatroom_id = find_id_by_name(chatroom_name, chatrooms)
+                if not self.chatroom_id: continue
                 break
         await self.multicast_to_chat(f"\n{self.name} has joined the chat!\n")
-        print(f"{self.chatroom_name} is touched the server")
+        print(f"{self.chatroom_id} chatroom is touched in the server")
+
+    async def chat_with_others_in_room(self):
+        while True:
+            data = await self.reader.read(header)
+            if data == b'\r\n': continue # to skip empty messages
+            message = f"{self.name}| {data.decode()}"
+            await self.multicast_to_chat(message)
 
 async def handle_client(reader, writer):
     client = Client(writer, reader)
     await client.choose_name()
     await client.choose_chat()
-    clients[client.name] = [client.writer, client.chatroom_name]
-
+    clients[client.id] = client.get_user_profile()
     try:
-        while True:
-            data = await client.reader.read(header)
-            if data == b'\r\n': continue # to skip empty messages
-            message = f"{client.name}| {data.decode()}"
-            await client.multicast_to_chat(message)
-
+        await client.chat_with_others_in_room()
     except asyncio.CancelledError:
         pass
     except Exception as e:
@@ -90,7 +111,7 @@ async def handle_client(reader, writer):
         del client
 
 async def main():
-    server = await asyncio.start_server(handle_client, '127.0.0.1', 8888)
+    server = await asyncio.start_server(handle_client, ip, port)
     async with server:
         await server.serve_forever()
 
