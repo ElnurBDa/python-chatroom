@@ -7,25 +7,26 @@ chatrooms = ["test"]
 async def broadcast_to_all(writer, message):
     for client in clients.values():
         if client[0] != writer:
-            await client_write_drain(client[0], f"{message}")
+            await send_message(client[0], f"{message}")
 
 async def multicast_to_chat(writer, chatroom_name, message):
     for client in clients.values():
         if client[0] != writer and client[1] == chatroom_name:
-            await client_write_drain(client[0], f"{message}")
+            await send_message(client[0], f"{message}")
 
 # send and receive message from a client
-async def client_write_drain(writer, message):
+async def send_message(writer, message):
+    print(message)
     writer.write(message.encode())
     await writer.drain()
 
-async def client_read_decode(reader):
-    data = await reader.readline()
+async def receive_message(reader):
+    data = await reader.read(1024)
     return data.decode().strip() 
 
 async def client_req_and_res(reader, writer, message):
-    await client_write_drain(writer, message)
-    return await client_read_decode(reader)
+    await send_message(writer, message)
+    return await receive_message(reader)
 
 # some actions with clients
 async def remove_client(writer, chatroom_name, name):        
@@ -38,7 +39,7 @@ async def choose_chat(reader, writer):
     option = ""
     while option not in ["1", "2"]:
         option = await client_req_and_res(reader, writer, f"\n1. Create a Chatroom\n2. Select a Chatroom {chatrooms}\n")
-
+    print(option)
     chatroom_name = ""
     while True:
         if option == "1": 
@@ -55,16 +56,17 @@ async def choose_chat(reader, writer):
 async def handle_client(reader, writer):
     client_address = writer.get_extra_info('peername')
     print(f"New connection from {client_address}")
-
-    name = await client_req_and_res(reader, writer, "Welcome to the chatroom! Please enter your name: ")
+    name = await client_req_and_res(reader, writer, "Welcome to the chatroom! Please enter your name: \n")
+    print(f"{name} is joined the server")
     chatroom_name = await choose_chat(reader, writer)
+    print(f"{chatroom_name} is touched the server")
     clients[name] = [writer, chatroom_name]
     await multicast_to_chat(writer, chatroom_name, f"\n{name} has joined the chat!\n")
 
     try:
         while True:
             # sending data to others
-            data = await reader.readline()
+            data = await reader.read(1024)
             if data == b'\r\n': continue # to skip empty messages
             message = f"{name}| {data.decode()}"
             await multicast_to_chat(writer, chatroom_name, message)
