@@ -7,8 +7,6 @@ class MySocket:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect(('127.0.0.1', 8888))
 
-        
-
     def send_message(self, message):
         self.sock.send(message.encode())
 
