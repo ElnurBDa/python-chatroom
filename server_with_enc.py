@@ -68,7 +68,8 @@ class Client:
     async def choose_chat(self):
         option = ""
         while option not in [Options.CREATE, Options.SELECT]:
-            option = await self.client_req_and_res(f"\n1. Create a Chatroom\n2. Select a Chatroom {chatrooms}\n")
+            chatroom_names = "\n".join(chatrooms.values())
+            option = await self.client_req_and_res(f"\n1. Create a Chatroom\n2. Select a Chatroom:\n{chatroom_names}\n")
             try:
                 option = Options(int(option))  # Convert user input to enum
             except ValueError:
@@ -93,8 +94,10 @@ class Client:
         while True:
             data = await self.reader.read(header)
             if data == b'\r\n': continue # to skip empty messages
+            
             message = f"{data.decode()}"
-            await self.multicast_to_chat("["+self.name+"] ")
+            # await self.multicast_to_chat("["+self.name+"] ")
+            
             await self.multicast_to_chat(message)
     
     async def get_publicKey(self):
@@ -103,7 +106,7 @@ class Client:
     async def send_publicKeys_of_chatroom(self):
         for user_id, values in clients.items():
             if values['chatroom_id'] == self.chatroom_id and user_id != self.id:
-                await self.send_message(f"e2ek|||{user_id}|||{values['publicKey']}\n")
+                await self.send_message(f"e2ek|||{values['name']}|||{values['publicKey']}|||")
 
 async def handle_client(reader, writer):
     client = Client(writer, reader)
@@ -113,7 +116,7 @@ async def handle_client(reader, writer):
     await client.choose_chat()
     clients[client.id] = client.get_user_profile()
     await client.send_message(f"Starting end-to-end encryption!\n")
-    await client.multicast_to_chat(f"e2ek|||{client.id}|||{client.publicKey}\n")
+    await client.multicast_to_chat(f"e2ek|||{client.name}|||{client.publicKey}\n")
     await client.send_publicKeys_of_chatroom()
     try:
         await client.chat_with_others_in_room()
