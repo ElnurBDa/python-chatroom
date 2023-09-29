@@ -17,7 +17,6 @@ async def send_message(writer, message):
     writer.write(message.encode())
     await writer.drain()
 
-
 class Client:
     def __init__(self, writer="", reader=""):
         self.id = generate_secure_user_id()
@@ -67,7 +66,8 @@ class Client:
     async def choose_chat(self):
         option = ""
         while option not in [Options.CREATE, Options.SELECT]:
-            option = await self.client_req_and_res(f"\n1. Create a Chatroom\n2. Select a Chatroom {chatrooms}\n")
+            chatroom_names = "\n".join(chatrooms.values())
+            option = await self.client_req_and_res(f"\n1. Create a Chatroom\n2. Select a Chatroom:\n{chatroom_names}\n")
             try:
                 option = Options(int(option))  # Convert user input to enum
             except ValueError:
