@@ -2,15 +2,14 @@ import asyncio
 from utils import *
 from enum import Enum
 import rsa
+from server_db import clients_db, chatrooms_db
 
 class Options(Enum):
     CREATE = 1
     SELECT = 2
 
-clients = {} # {'id': {'name':"bob", 'writer':<writer>, 'chatroom_id':"1", 'publicKey':""}}
-chatrooms = {
-    'chat______default_id_of_default_chatroom':"test"
-} # {'chatroom_id': 'chatroom_name'}
+clients = clients_db # {'id': {'name':"bob", 'writer':<writer>, 'chatroom_id':"1", 'publicKey':""}}
+chatrooms = chatrooms_db # {'chatroom_id': 'chatroom_name'}
 header = 1024
 ip, port = '127.0.0.1', 8888
 
@@ -20,7 +19,7 @@ async def send_message(writer, message):
 
 class Client:
     def __init__(self, writer="", reader=""):
-        self.id = generate_secure_user_id()
+        self.id = ""
         self.writer = writer
         self.reader = reader
         self.name = ""
@@ -64,6 +63,11 @@ class Client:
     async def choose_name(self):
         self.name = await self.client_req_and_res("Welcome to the chatroom! Please enter your name: \n")
         print(f"{self.name} has joined the server")
+        for user_id, values in clients.items():
+            if values['name'] == self.name:
+                self.id = user_id
+        if not self.id: 
+            self.id = generate_secure_user_id()
 
     async def choose_chat(self):
         option = ""
@@ -95,7 +99,7 @@ class Client:
             message = await self.receive_message()
             if "e2em|||" in message:
                 _, client_id, encrypted_message = message.split("|||")
-                await send_message(clients[client_id]["writer"], f"{message}")
+                await send_message(clients[client_id]["writer"], f"{self.name}{message}")
     
     async def get_publicKey(self):
         self.publicKey = await self.receive_message()
@@ -124,11 +128,22 @@ async def handle_client(reader, writer):
     finally:
         await client.remove_client()
         del client
+        # Database
 
 async def main():
-    server = await asyncio.start_server(handle_client, ip, port)
-    async with server:
-        await server.serve_forever()
+    print("Server is started")
+    try:
+        server = await asyncio.start_server(handle_client, ip, port)
+        async with server:
+            await server.serve_forever()
+    finally:
+        #handle db
+        clients_cut = {}
+        for cid, values in clients.items():
+            clients_cut[cid] = {'name':values['name'], 'chatroom_id':values['chatroom_id'], 'publicKey':values['publicKey']}
+        server_db = open("server_db.py", "w")
+        server_db.write(f"# who said that python file cannot be a database\nclients_db = {clients_cut}\nchatrooms_db = {chatrooms}")
+        server_db.close()
 
 if __name__ == "__main__":
     asyncio.run(main())

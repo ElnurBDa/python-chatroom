@@ -46,7 +46,7 @@ class MySocket:
             if "e2em|||" in message:
                 name, client_id, encrypted_message = message.split("|||")
                 decrypted_message = rsa.decrypt(eval(encrypted_message), self.private_key).decode()
-                print(f"<# {decrypted_message}") # prints with e2e
+                print(f"<# {name[:-4]} >{decrypted_message}") # prints with e2e
             elif "e2ek|||" in message:
                 parts = message.split("e2ek|||")
                 for part in parts[1:]:
