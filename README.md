@@ -29,3 +29,6 @@ python client.py
     - [x] a lot of errors occur, something need to be done, but it is enough for now
         - end-to-end works perfectly fine
 - [ ] add some documentation on code
+
+# NOTE!!!
+This project is designed for inspiration! Do not fool your teacher with a little modified project! 
