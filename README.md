@@ -31,4 +31,4 @@ python client.py
 - [ ] add some documentation on code
 
 # NOTE!!!
-This project is designed for inspiration! Do not fool your teacher with a little modified project! 
+This project is designed for inspiration! Do not fool your teacher with a little modified my project! 
