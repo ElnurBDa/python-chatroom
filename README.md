@@ -23,7 +23,9 @@ python client.py
 - [x] rewrite server code, because it looks awful (it is still)
 - [x] add client.py code instead of using telnet
 - [x] add ids for clients and chats 
-- [ ] add some database
+- [x] add some database
+    - python file is db
 - [x] end-to-end encryption
-    - [ ] a lot of errors occur, something need to be done, but it is enough for now
-- [ ] add documentation on code
+    - [x] a lot of errors occur, something need to be done, but it is enough for now
+        - end-to-end works perfectly fine
+- [ ] add some documentation on code
