@@ -92,13 +92,10 @@ class Client:
 
     async def chat_with_others_in_room(self):
         while True:
-            data = await self.reader.read(header)
-            if data == b'\r\n': continue # to skip empty messages
-            
-            message = f"{data.decode()}"
-            # await self.multicast_to_chat("["+self.name+"] ")
-            
-            await self.multicast_to_chat(message)
+            message = await self.receive_message()
+            if "e2em|||" in message:
+                _, client_id, encrypted_message = message.split("|||")
+                await send_message(clients[client_id]["writer"], f"{message}")
     
     async def get_publicKey(self):
         self.publicKey = await self.receive_message()
@@ -106,7 +103,7 @@ class Client:
     async def send_publicKeys_of_chatroom(self):
         for user_id, values in clients.items():
             if values['chatroom_id'] == self.chatroom_id and user_id != self.id:
-                await self.send_message(f"e2ek|||{values['name']}|||{values['publicKey']}|||")
+                await self.send_message(f"e2ek|||{user_id}|||{values['publicKey']}")
 
 async def handle_client(reader, writer):
     client = Client(writer, reader)
@@ -116,7 +113,7 @@ async def handle_client(reader, writer):
     await client.choose_chat()
     clients[client.id] = client.get_user_profile()
     await client.send_message(f"Starting end-to-end encryption!\n")
-    await client.multicast_to_chat(f"e2ek|||{client.name}|||{client.publicKey}\n")
+    await client.multicast_to_chat(f"e2ek|||{client.id}|||{client.publicKey}")
     await client.send_publicKeys_of_chatroom()
     try:
         await client.chat_with_others_in_room()

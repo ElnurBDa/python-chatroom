@@ -1,8 +1,6 @@
 import socket
 import threading
 import rsa
-import time
-
 
 def count_word_occurrences(text, word):
     words = text.strip().split('|||')
@@ -17,7 +15,7 @@ class MySocket:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect(('127.0.0.1', 8888))
         self.public_key, self.private_key = rsa.newkeys(2048)
-        self.other_clients_in_chat = [] # [{'client_id':"", 'public_key':""}}]
+        self.other_clients_in_chat = {} # {client_id: public_key}
 
     def send_message(self, message):
         self.sock.send(message.encode())
@@ -31,46 +29,38 @@ class MySocket:
 
     def send_messages(self):
         while True:
-            message = input()
-            if len(self.other_clients_in_chat)>0:
-                for n in range(0,len(message),245):
-                    part = message[n:n+245]
-                    for client in self.other_clients_in_chat:
-                        encMessage = rsa.encrypt(part.encode(), rsa.PublicKey.load_pkcs1(client['client_public_key']))
-                        part = f"e2em|||{client['client_id']}|||{encMessage}"
-                        self.send_message(part)
-                        time.sleep(0.1)
-                continue
-            self.send_message(message)
+            message = input("> ")
+            if message.lower() == 'exit': break
+            if len(self.other_clients_in_chat) == 0: 
+                self.sock.send(message.encode())
+            else: # we are in room with other clients 
+                for client_id, public_key in self.other_clients_in_chat.items():
+                    encrypted_message = rsa.encrypt(message.encode(), public_key)
+                    self.sock.send(f"e2em|||{client_id}|||{encrypted_message}".encode())
 
     def receive_messages(self):
         while True:
-            message = self.receive_message()
-            client_id = "CHAT"
-            num = count_word_occurrences(message, 'e2ek')
-            parts = message.strip().split('|||')
-            for i in range(num):
-                if parts[i*3] == 'e2ek':
-                    client_id = parts[1+i*3]
-                    client_public_key = parts[2+i*3]
-                    client = {
-                        'client_id': client_id,
-                        'client_public_key': client_public_key
-                    }
-                    self.other_clients_in_chat.append(client)
-                    message = "I joined"
-            if parts[0] == 'e2em':
-                client_id = parts[1]
-                m = eval(f"b{parts[2][1:]}")
-                message = str(rsa.decrypt(eval(f"b{parts[2][1:]}"), self.private_key))[2:-1]
-            print(f"{client_id} > {message}")
+            data = self.sock.recv(1024)
+            message = data.decode().strip()
+            
+            if "e2em|||" in message:
+                name, client_id, encrypted_message = message.split("|||")
+                decrypted_message = rsa.decrypt(eval(encrypted_message), self.private_key).decode()
+                print(f"<# {decrypted_message}") # prints with e2e
+            elif "e2ek|||" in message:
+                parts = message.split("e2ek|||")
+                for part in parts[1:]:
+                    client_id, public_key_encoded = part.split("|||")
+                    self.other_clients_in_chat[client_id] = rsa.PublicKey.load_pkcs1(public_key_encoded)
+                    # print(f"Client {client_id} with {public_key_encoded} is here!")
+            else:
+                print(f"<$ {message}") # prints without e2e
 
 def main():
     mysocket = MySocket()
     receiver = threading.Thread(target=mysocket.receive_messages)
     mysocket.send_public_key()
     receiver.start()
-
     try:
         mysocket.send_messages()
     except KeyboardInterrupt:

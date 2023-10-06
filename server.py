@@ -11,7 +11,7 @@ chatrooms = {
     'chat______default_id_of_default_chatroom':"test"
 } # {'chatroom_id': 'chatroom_name'}
 header = 1024
-ip, port = '127.0.0.1', 8888
+ip, port = '', 1234
 
 async def send_message(writer, message):
     writer.write(message.encode())

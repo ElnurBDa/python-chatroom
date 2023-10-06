@@ -6,7 +6,7 @@ class MySocket:
 
     def __init__(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect(('127.0.0.1', 8888))
+        self.sock.connect(('127.0.0.1', 1234))
 
     def send_message(self, message):
         self.sock.send(message.encode())
