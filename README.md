@@ -7,7 +7,7 @@ run server
 python server.py
 ```
 
-connect via telnet
+connect via telnet (with older versions)
 ```bash
 telnet <ip> <port>
 ```

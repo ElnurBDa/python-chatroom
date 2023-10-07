@@ -1,7 +1,6 @@
 import asyncio
 from utils import *
 from enum import Enum
-import rsa
 from server_db import clients_db, chatrooms_db
 
 class Options(Enum):
@@ -128,7 +127,6 @@ async def handle_client(reader, writer):
     finally:
         await client.remove_client()
         del client
-        # Database
 
 async def main():
     print("Server is started")
@@ -137,7 +135,7 @@ async def main():
         async with server:
             await server.serve_forever()
     finally:
-        #handle db
+        # handle db
         clients_cut = {}
         for cid, values in clients.items():
             clients_cut[cid] = {'name':values['name'], 'chatroom_id':values['chatroom_id'], 'publicKey':values['publicKey']}
