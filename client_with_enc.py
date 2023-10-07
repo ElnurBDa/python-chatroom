@@ -2,6 +2,10 @@ import socket
 import threading
 import rsa
 
+# e2ek|||client_id|||public_key
+# e2em|||client_id|||encrypted_message
+
+
 def count_word_occurrences(text, word):
     words = text.strip().split('|||')
     count = 0
@@ -24,7 +28,7 @@ class MySocket:
         self.sock.send(self.public_key.save_pkcs1())
 
     def receive_message(self):
-        data = self.sock.recv(1024)
+        data = self.sock.recv(4096)
         return data.decode().strip()
 
     def send_messages(self):
@@ -40,7 +44,7 @@ class MySocket:
 
     def receive_messages(self):
         while True:
-            data = self.sock.recv(1024)
+            data = self.sock.recv(4096)
             message = data.decode().strip()
             
             if "e2em|||" in message:
@@ -50,6 +54,7 @@ class MySocket:
             elif "e2ek|||" in message:
                 parts = message.split("e2ek|||")
                 for part in parts[1:]:
+                    print(part)
                     client_id, public_key_encoded = part.split("|||")
                     self.other_clients_in_chat[client_id] = rsa.PublicKey.load_pkcs1(public_key_encoded)
                     # print(f"Client {client_id} with {public_key_encoded} is here!")

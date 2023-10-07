@@ -10,7 +10,7 @@ class Options(Enum):
 
 clients = clients_db # {'id': {'name':"bob", 'writer':<writer>, 'chatroom_id':"1", 'publicKey':""}}
 chatrooms = chatrooms_db # {'chatroom_id': 'chatroom_name'}
-header = 1024
+header = 4096
 ip, port = '127.0.0.1', 8888
 
 async def send_message(writer, message):
