@@ -29,6 +29,7 @@ python client.py
     - [x] a lot of errors occur, something need to be done, but it is enough for now
         - end-to-end works perfectly fine
 - [ ] add some documentation on code
+- [ ] the code needs a lot of enhancements, I think some parts are not understandable or lacks optimization
 
 # NOTE!!!
 This project is designed for inspiration! Do not fool your teacher with a little modified my project! 
